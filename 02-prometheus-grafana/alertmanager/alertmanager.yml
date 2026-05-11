@@ -20,8 +20,8 @@ route:
 receivers:
   - name: 'slack-default'
     slack_configs:
-      - api_url: '{{ env "SLACK_WEBHOOK_URL" }}'
-        channel: '#observability'
+      - api_url_file: '/run/secrets/slack_webhook_url'
+        channel: '#general'
         send_resolved: true
         title: '{{ if eq .Status "firing" }}🔥{{ else }}✅{{ end }} {{ .GroupLabels.alertname }}'
         text: |
@@ -33,8 +33,8 @@ receivers:
 
   - name: 'slack-critical'
     slack_configs:
-      - api_url: '{{ env "SLACK_WEBHOOK_URL" }}'
-        channel: '#oncall'
+      - api_url_file: '/run/secrets/slack_webhook_url'
+        channel: '#general'
         send_resolved: true
         title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
         text: |

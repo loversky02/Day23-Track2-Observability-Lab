@@ -13,29 +13,34 @@ groups:
     interval: 30s
     rules:
       # Recording rules — pre-compute the failure rate at multiple windows
+      # or vector(0) ensures panels render 0 instead of "No Data" before errors appear
       - record: inference:fail_ratio:rate5m
         expr: |
           sum(rate(inference_requests_total{status="error"}[5m]))
           /
           sum(rate(inference_requests_total[5m]))
+          or vector(0)
 
       - record: inference:fail_ratio:rate30m
         expr: |
           sum(rate(inference_requests_total{status="error"}[30m]))
           /
           sum(rate(inference_requests_total[30m]))
+          or vector(0)
 
       - record: inference:fail_ratio:rate1h
         expr: |
           sum(rate(inference_requests_total{status="error"}[1h]))
           /
           sum(rate(inference_requests_total[1h]))
+          or vector(0)
 
       - record: inference:fail_ratio:rate6h
         expr: |
           sum(rate(inference_requests_total{status="error"}[6h]))
           /
           sum(rate(inference_requests_total[6h]))
+          or vector(0)
 
       # Fast burn — fires within minutes if we're hammering the budget
       - alert: SLOFastBurn

@@ -15,9 +15,20 @@ services:
       OTEL_SERVICE_NAME: inference-api
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=lab,service.namespace=aicb
       LOG_LEVEL: INFO
+      PYROSCOPE_SERVER: http://pyroscope:4040
+      PYROSCOPE_APP_NAME: inference-api
+      LANGFUSE_HOST: http://langfuse:3000
+      LANGFUSE_PUBLIC_KEY: pk-lf-5e55c275-f044-4e82-adab-6e2a370fc3c7
+      LANGFUSE_SECRET_KEY: sk-lf-dbe164ba-1158-4f54-878a-1540b7c06561
     depends_on:
       otel-collector:
         condition: service_started
+      pyroscope:
+        condition: service_started
+      langfuse:
+        condition: service_started
+    cap_add:
+      - SYS_PTRACE  # for py-spy profiling
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
       interval: 5s
@@ -45,6 +56,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    dns_search: []
     networks: [obs]
 
   alertmanager:
@@ -56,6 +68,8 @@ services:
       - ./02-prometheus-grafana/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     environment:
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-https://hooks.slack.com/services/REPLACE/ME}
+    command: >
+      sh -c 'echo "$${SLACK_WEBHOOK_URL}" > /run/secrets/slack_webhook_url && exec /bin/alertmanager --config.file=/etc/alertmanager/alertmanager.yml --storage.path=/alertmanager'
     networks: [obs]
 
   grafana:
@@ -113,9 +127,51 @@ services:
       - jaeger
     networks: [obs]
 
+  ## ── BONUS B1: Pyroscope continuous profiling ──────────────────
+  pyroscope:
+    image: grafana/pyroscope:1.7.0
+    container_name: day23-pyroscope
+    ports:
+      - "127.0.0.1:4040:4040"
+    volumes:
+      - pyroscope-data:/data
+    networks: [obs]
+
+  ## ── BONUS B2: Langfuse self-hosted LLM observability ──────────
+  langfuse-db:
+    image: postgres:16-alpine
+    container_name: day23-langfuse-db
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse-db-data:/var/lib/postgresql/data
+    networks: [obs]
+
+  langfuse:
+    image: langfuse/langfuse:2
+    container_name: day23-langfuse
+    ports:
+      - "127.0.0.1:3030:3000"
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
+      NEXTAUTH_URL: http://localhost:3030
+      NEXTAUTH_SECRET: day23-lab-secret-key-not-for-prod
+      SALT: day23-lab-salt
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+    depends_on:
+      langfuse-db:
+        condition: service_started
+    networks: [obs]
+
 volumes:
   prom-data:
   grafana-data:
+  pyroscope-data:
+  langfuse-db-data:
 
 networks:
   obs:

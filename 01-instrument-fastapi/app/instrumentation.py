@@ -52,7 +52,9 @@ tracer = trace.get_tracer(__name__)
 
 
 def setup_otel() -> None:
-    """Configure OTLP trace export + FastAPI auto-instrumentation."""
+    """Configure OTLP trace export + FastAPI auto-instrumentation + Pyroscope profiling."""
+    global tracer  # refresh after provider is set
+
     resource = Resource.create(
         {
             "service.name": os.getenv("OTEL_SERVICE_NAME", "inference-api"),
@@ -69,11 +71,29 @@ def setup_otel() -> None:
         BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=True))
     )
     trace.set_tracer_provider(provider)
+    tracer = trace.get_tracer(__name__)  # re-obtain after provider is set
+
     # Auto-instrument FastAPI handlers (creates server spans for every route)
     from fastapi import FastAPI  # local import: only needed at setup
 
     FastAPIInstrumentor().instrument()
     _configure_logging()
+
+    # BONUS B1: Pyroscope continuous profiling
+    try:
+        import pyroscope
+
+        pyroscope.configure(
+            app_name=os.getenv("PYROSCOPE_APP_NAME", "inference-api"),
+            server_address=os.getenv("PYROSCOPE_SERVER", "http://pyroscope:4040"),
+            sample_rate=100,
+            oncpu=True,
+            report_pid=True,
+            report_thread_id=True,
+            report_thread_name=True,
+        )
+    except Exception:
+        pass  # pyroscope not required for core lab
 
 
 def _configure_logging() -> None:

@@ -8,3 +8,7 @@ opentelemetry-exporter-otlp==1.28.2
 opentelemetry-instrumentation-fastapi==0.49b2
 opentelemetry-instrumentation-requests==0.49b2
 structlog==24.4.0
+pyroscope-io==0.8.7
+langfuse==2.53.0
+langchain==0.3.13
+langchain-openai==0.2.14

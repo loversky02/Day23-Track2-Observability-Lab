@@ -96,13 +96,13 @@ def main() -> int:
 
     # Optional: full Evidently HTML report (large dependency, gracefully skip if missing)
     try:
-        from evidently.report import Report
-        from evidently.metric_preset import DataDriftPreset
+        from evidently import Report
+        from evidently.presets import DataDriftPreset
 
         report = Report(metrics=[DataDriftPreset()])
-        report.run(reference_data=reference, current_data=current)
+        snapshot = report.run(reference_data=reference, current_data=current)
         html_path = REPORTS_DIR / "drift-report.html"
-        report.save_html(str(html_path))
+        snapshot.save_html(str(html_path))
         print(f"Wrote: {html_path}")
     except ImportError:
         print("evidently not installed; skipping HTML report. Install with: pip install evidently")
