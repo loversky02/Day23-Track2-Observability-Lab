@@ -1,0 +1,98 @@
+{
+  "uid": "zalo-bot-dev",
+  "title": "Zalo Bot — Dev View (SRE Dashboard)",
+  "tags": ["zalo", "dev", "sre", "bonus-p2"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1, "title": "Request Rate (req/s)",
+      "type": "timeseries", "gridPos": {"x": 0, "y": 0, "w": 8, "h": 7},
+      "targets": [{"expr": "sum(rate(zalo_bot_requests_total[1m])) by (endpoint, status)", "legendFormat": "{{endpoint}} — {{status}}"}],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "id": 2, "title": "P50 / P95 / P99 Latency",
+      "type": "timeseries", "gridPos": {"x": 8, "y": 0, "w": 8, "h": 7},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(zalo_bot_response_latency_seconds_bucket[5m])) by (le))", "legendFormat": "P50"},
+        {"expr": "histogram_quantile(0.95, sum(rate(zalo_bot_response_latency_seconds_bucket[5m])) by (le))", "legendFormat": "P95"},
+        {"expr": "histogram_quantile(0.99, sum(rate(zalo_bot_response_latency_seconds_bucket[5m])) by (le))", "legendFormat": "P99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 3, "title": "Error Rate (%)",
+      "type": "timeseries", "gridPos": {"x": 16, "y": 0, "w": 8, "h": 7},
+      "targets": [{"expr": "sum(rate(zalo_bot_requests_total{status=~\"5..\"}[5m])) / sum(rate(zalo_bot_requests_total[5m])) * 100", "legendFormat": "error %"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [
+        {"value": 0, "color": "green"}, {"value": 5, "color": "yellow"}, {"value": 10, "color": "red"}
+      ]}}}
+    },
+    {
+      "id": 4, "title": "Order Confirmation Accuracy (GPT-as-Judge)",
+      "type": "timeseries", "gridPos": {"x": 0, "y": 7, "w": 12, "h": 7},
+      "targets": [{"expr": "avg(zalo_bot_order_accuracy_score)", "legendFormat": "accuracy"}],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "thresholds": {"mode": "absolute", "steps": [
+        {"value": 0, "color": "red"}, {"value": 0.85, "color": "yellow"}, {"value": 0.95, "color": "green"}
+      ]}}}
+    },
+    {
+      "id": 5, "title": "Intent Confidence Distribution",
+      "type": "heatmap", "gridPos": {"x": 12, "y": 7, "w": 12, "h": 7},
+      "targets": [{"expr": "sum(rate(zalo_bot_intent_confidence_bucket[5m])) by (le)", "legendFormat": "{{le}}"}],
+      "fieldConfig": {"defaults": {}}
+    },
+    {
+      "id": 6, "title": "Token Usage (input/output)",
+      "type": "timeseries", "gridPos": {"x": 0, "y": 14, "w": 8, "h": 7},
+      "targets": [
+        {"expr": "sum(rate(zalo_bot_tokens_total{direction=\"input\"}[5m]))", "legendFormat": "input"},
+        {"expr": "sum(rate(zalo_bot_tokens_total{direction=\"output\"}[5m]))", "legendFormat": "output"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "tps"}}
+    },
+    {
+      "id": 7, "title": "Active Conversations",
+      "type": "stat", "gridPos": {"x": 8, "y": 14, "w": 4, "h": 7},
+      "targets": [{"expr": "zalo_bot_active_conversations", "legendFormat": "active"}],
+      "fieldConfig": {"defaults": {}}
+    },
+    {
+      "id": 8, "title": "DB Connection Pool Usage",
+      "type": "gauge", "gridPos": {"x": 12, "y": 14, "w": 4, "h": 7},
+      "targets": [{"expr": "zalo_bot_db_pool_usage_percent", "legendFormat": "pool %"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "max": 100, "thresholds": {"mode": "absolute", "steps": [
+        {"value": 0, "color": "green"}, {"value": 70, "color": "yellow"}, {"value": 90, "color": "red"}
+      ]}}}
+    },
+    {
+      "id": 9, "title": "Cost Estimate Today (USD)",
+      "type": "stat", "gridPos": {"x": 16, "y": 14, "w": 4, "h": 7},
+      "targets": [{"expr": "sum(increase(zalo_bot_cost_usd_total[24h]))", "legendFormat": "cost"}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}}
+    },
+    {
+      "id": 10, "title": "Top 5 Detected Intents (last 1h)",
+      "type": "piechart", "gridPos": {"x": 20, "y": 14, "w": 4, "h": 7},
+      "targets": [{"expr": "topk(5, sum(rate(zalo_bot_intents_total[1h])) by (intent))", "legendFormat": "{{intent}}"}],
+      "fieldConfig": {"defaults": {}}
+    },
+    {
+      "id": 11, "title": "SLO: Bot Uptime (30d)",
+      "type": "stat", "gridPos": {"x": 0, "y": 21, "w": 6, "h": 6},
+      "targets": [{"expr": "100 - (sum(rate(zalo_bot_requests_total{status=~\"5..\"}[30d])) / sum(rate(zalo_bot_requests_total[30d]))) * 100", "legendFormat": "uptime %"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 99, "max": 100, "thresholds": {"mode": "absolute", "steps": [
+        {"value": 99, "color": "red"}, {"value": 99.5, "color": "yellow"}, {"value": 99.9, "color": "green"}
+      ]}}}
+    },
+    {
+      "id": 12, "title": "Cost per Order (VND)",
+      "type": "stat", "gridPos": {"x": 6, "y": 21, "w": 6, "h": 6},
+      "targets": [{"expr": "sum(increase(zalo_bot_cost_usd_total[24h])) * 26000 / sum(increase(zalo_bot_orders_total[24h]))", "legendFormat": "VND/order"}],
+      "fieldConfig": {"defaults": {"unit": "VND"}}
+    }
+  ],
+  "time": {"from": "now-6h", "to": "now"}
+}

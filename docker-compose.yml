@@ -27,6 +27,7 @@ services:
         condition: service_started
       langfuse:
         condition: service_started
+    restart: unless-stopped
     cap_add:
       - SYS_PTRACE  # for py-spy profiling
     healthcheck:

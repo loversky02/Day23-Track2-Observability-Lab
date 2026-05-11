@@ -31,10 +31,25 @@ groups:
 
       - alert: InferenceQualityDrop
         expr: avg(inference_quality_score) by (model) < 0.7
-        for: 10m
+        for: 5m
         labels:
           severity: warning
           service: inference-api
         annotations:
           summary: "Eval-as-metric quality < 0.7 on {{ $labels.model }}"
-          description: "Sustained drop in production eval score — investigate drift or model regression."
+          description: "Quality score has been below 0.7 for 5 minutes. Check quality dashboard before assuming infra issue — model outputs may be degraded even if latency is normal."
+
+      # Composite: quality degradation + elevated error rate = model issue, not infra blip
+      - alert: ModelDegradationComposite
+        expr: |
+          avg(inference_quality_score) by (model) < 0.85
+          and
+          sum(rate(inference_requests_total{status="error"}[5m])) / sum(rate(inference_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: inference-api
+        annotations:
+          summary: "Model degradation: quality < 0.85 AND error rate > 5% on {{ $labels.model }}"
+          description: "Both quality score and error rate are degraded — this is likely a model issue, not an infra blip. Check recent deploys, model version, or data pipeline for poisoning."
+          runbook_url: "https://wiki.example/runbooks/model-degradation"

@@ -1,0 +1,87 @@
+## SLO: 99.9% of vector searches succeed within 30 days
+## Error budget = 0.1% = 43.2 minutes/month.
+##
+## Multi-window multi-burn-rate (Google SRE Workbook §5):
+##   Fast burn:  5m AND 1h windows, both > 14.4× normal rate
+##   Slow burn:  30m AND 6h windows, both > 6× normal rate
+##
+## SLI = sum(rate(success)) / sum(rate(total))
+## Burn rate = failures_observed / 0.001
+
+groups:
+  - name: vector-store-slo
+    interval: 30s
+    rules:
+      - record: vector_search:fail_ratio:rate5m
+        expr: |
+          sum(rate(vector_search_requests_total{status="error"}[5m]))
+          /
+          sum(rate(vector_search_requests_total[5m]))
+          or vector(0)
+
+      - record: vector_search:fail_ratio:rate30m
+        expr: |
+          sum(rate(vector_search_requests_total{status="error"}[30m]))
+          /
+          sum(rate(vector_search_requests_total[30m]))
+          or vector(0)
+
+      - record: vector_search:fail_ratio:rate1h
+        expr: |
+          sum(rate(vector_search_requests_total{status="error"}[1h]))
+          /
+          sum(rate(vector_search_requests_total[1h]))
+          or vector(0)
+
+      - record: vector_search:fail_ratio:rate6h
+        expr: |
+          sum(rate(vector_search_requests_total{status="error"}[6h]))
+          /
+          sum(rate(vector_search_requests_total[6h]))
+          or vector(0)
+
+      # Fast burn — critical: page on-call within minutes
+      - alert: VectorStoreFastBurn
+        expr: |
+          vector_search:fail_ratio:rate5m  > (14.4 * 0.001)
+          and
+          vector_search:fail_ratio:rate1h  > (14.4 * 0.001)
+        for: 2m
+        labels:
+          severity: critical
+          service: vector-store
+          component: retrieval
+        annotations:
+          summary: "Vector Store SLO fast burn: error budget consumed > 14.4× normal"
+          description: "5m and 1h burn rates both exceed 14.4×. Retrieval may be degraded. At this pace the 30-day error budget is gone in ~2 days."
+          runbook_url: "https://github.com/loversky/Day23-Track2-Observability-Lab/blob/main/bonus/p1-prior-day-telemetry/RUNBOOK.md"
+
+      # Slow burn — warning: sustained low-grade errors
+      - alert: VectorStoreSlowBurn
+        expr: |
+          vector_search:fail_ratio:rate30m > (6 * 0.001)
+          and
+          vector_search:fail_ratio:rate6h  > (6 * 0.001)
+        for: 15m
+        labels:
+          severity: warning
+          service: vector-store
+          component: retrieval
+        annotations:
+          summary: "Vector Store SLO slow burn: error budget consuming > 6× normal"
+          description: "30m and 6h burn rates both exceed 6×. Investigate before retrieval quality degrades further."
+          runbook_url: "https://github.com/loversky/Day23-Track2-Observability-Lab/blob/main/bonus/p1-prior-day-telemetry/RUNBOOK.md"
+
+      # Quality alert: recall@10 dropping (the failure mode I actually fear)
+      - alert: VectorStoreRecallDegradation
+        expr: |
+          avg(vector_retrieval_recall_at10) by (collection) < 0.90
+        for: 30m
+        labels:
+          severity: warning
+          service: vector-store
+          component: retrieval
+        annotations:
+          summary: "Recall@10 < 0.90 on collection {{ $labels.collection }}"
+          description: "Retrieval quality dropping — users may get irrelevant results even though the service is 'up'. Check index fragmentation, embedding drift, or data staleness."
+          runbook_url: "https://github.com/loversky/Day23-Track2-Observability-Lab/blob/main/bonus/p1-prior-day-telemetry/RUNBOOK.md"

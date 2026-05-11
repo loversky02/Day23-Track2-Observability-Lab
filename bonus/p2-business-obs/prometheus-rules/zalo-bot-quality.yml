@@ -1,0 +1,67 @@
+## AI Chatbot Quality Alert Rules for Zalo Bot
+
+groups:
+  - name: zalo-bot-quality
+    interval: 30s
+    rules:
+      # Critical: Bot is down — page dev immediately
+      - alert: ZaloBotDown
+        expr: up{job="zalo-bot"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: zalo-bot
+          audience: both
+        annotations:
+          summary: "Zalo Bot không phản hồi — khách đang mất đơn"
+          description: "Bot đã down 2 phút. Kiểm tra Zalo webhook, server, hoặc rate limit."
+          runbook_url: "https://github.com/loversky/Day23-Track2-Observability-Lab/blob/main/bonus/p2-business-obs/RUNBOOK.md"
+          business_impact: "Mỗi 10 phút bot down ≈ 5-8 đơn bị mất"
+          owner_message: "Chị Hương ơi, bot Zalo đang bị lỗi không trả lời khách. Tuấn đang kiểm tra."
+
+      # Warning: High error rate
+      - alert: ZaloBotHighErrorRate
+        expr: |
+          sum(rate(zalo_bot_requests_total{status=~"5.."}[10m]))
+          /
+          sum(rate(zalo_bot_requests_total[10m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: zalo-bot
+          audience: dev
+        annotations:
+          summary: "Zalo Bot error rate > 10% — hơn 10% tin nhắn bị lỗi"
+          description: "Tỉ lệ lỗi 5xx đang > 10% trong 10 phút. Có thể Zalo API đang rate-limit hoặc server quá tải."
+          runbook_url: "https://github.com/loversky/Day23-Track2-Observability-Lab/blob/main/bonus/p2-business-obs/RUNBOOK.md"
+
+      # Warning: Bot is slow — customers waiting
+      - alert: ZaloBotHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(zalo_bot_response_latency_seconds_bucket[10m])) by (le)
+          ) > 5.0
+        for: 15m
+        labels:
+          severity: warning
+          service: zalo-bot
+          audience: dev
+        annotations:
+          summary: "Zalo Bot P95 latency > 5s — khách đang phải đợi lâu"
+          description: "Bot trả lời chậm > 5 giây. Khách có thể bỏ cuộc. Kiểm tra LLM API latency hoặc database connection pool."
+          runbook_url: "https://github.com/loversky/Day23-Track2-Observability-Lab/blob/main/bonus/p2-business-obs/RUNBOOK.md"
+
+      # Critical but for dev only: Order quality degraded
+      - alert: ZaloBotQualityDegradation
+        expr: |
+          avg(zalo_bot_order_accuracy_score) < 0.85
+        for: 30m
+        labels:
+          severity: warning
+          service: zalo-bot
+          audience: dev
+        annotations:
+          summary: "Chất lượng order confirmation < 85% — bot có thể đang xác nhận sai món"
+          description: "GPT-judge score trung bình < 0.85. Intent parser có thể bị drift hoặc LLM hallucinate menu item. Kiểm tra sample bị sai để tìm pattern."
+          runbook_url: "https://github.com/loversky/Day23-Track2-Observability-Lab/blob/main/bonus/p2-business-obs/RUNBOOK.md"
+          business_impact: "Khách nhận confirm sai món → khiếu nại, mất khách quen"

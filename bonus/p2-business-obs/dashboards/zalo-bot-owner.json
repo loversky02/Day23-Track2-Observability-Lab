@@ -1,0 +1,70 @@
+{
+  "uid": "zalo-bot-owner",
+  "title": "Cà Phê Sáng — Bot hoạt động thế nào?",
+  "tags": ["business", "zalo", "owner-view", "bonus-p2"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "🏪 Đơn hôm nay nhận qua bot",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 6},
+      "targets": [{"expr": "sum(increase(zalo_bot_orders_total{status=\"confirmed\"}[24h]))", "legendFormat": "đơn"}],
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
+        {"value": 0, "color": "red"}, {"value": 100, "color": "yellow"}, {"value": 200, "color": "green"}
+      ]}}}
+    },
+    {
+      "id": 2,
+      "title": "💸 Doanh thu ước tính hôm nay",
+      "type": "stat",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 6},
+      "targets": [{"expr": "sum(increase(zalo_bot_revenue_vnd_total[24h]))", "legendFormat": "VNĐ"}],
+      "fieldConfig": {"defaults": {"unit": "VND", "thresholds": {"mode": "absolute", "steps": [
+        {"value": 0, "color": "red"}, {"value": 3000000, "color": "yellow"}, {"value": 8000000, "color": "green"}
+      ]}}}
+    },
+    {
+      "id": 3,
+      "title": "📱 Bot có đang online không?",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 6},
+      "targets": [{"expr": "up{job=\"zalo-bot\"}", "legendFormat": "bot"}],
+      "fieldConfig": {"defaults": {"mappings": [
+        {"type": "value", "value": "1", "text": "✅ Đang hoạt động"},
+        {"type": "value", "value": "0", "text": "🔴 ĐANG LỖI"}
+      ], "thresholds": {"mode": "absolute", "steps": [
+        {"value": 0, "color": "red"}, {"value": 1, "color": "green"}
+      ]}}}
+    },
+    {
+      "id": 4,
+      "title": "⏱️ Bot trả lời nhanh không? (giây)",
+      "type": "stat",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 6},
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(zalo_bot_response_latency_seconds_bucket[10m])) by (le))", "legendFormat": "P95"}],
+      "fieldConfig": {"defaults": {"unit": "s", "thresholds": {"mode": "absolute", "steps": [
+        {"value": 0, "color": "green"}, {"value": 3, "color": "yellow"}, {"value": 7, "color": "red"}
+      ]}}}
+    },
+    {
+      "id": 5,
+      "title": "📊 Đơn theo giờ hôm nay",
+      "type": "barchart",
+      "gridPos": {"x": 0, "y": 6, "w": 24, "h": 10},
+      "targets": [{"expr": "sum(increase(zalo_bot_orders_total{status=\"confirmed\"}[1h]))", "legendFormat": "Đơn"}],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "id": 6,
+      "title": "📅 Đơn 7 ngày qua",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 16, "w": 24, "h": 8},
+      "targets": [{"expr": "sum(increase(zalo_bot_orders_total{status=\"confirmed\"}[24h]))", "legendFormat": "Đơn/ngày"}],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    }
+  ],
+  "time": {"from": "now-24h", "to": "now"}
+}

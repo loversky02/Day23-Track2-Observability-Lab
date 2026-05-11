@@ -1,0 +1,115 @@
+{
+  "uid": "llm-cost-observability",
+  "title": "LLM Cost & Tokens — Real-Time FinOps",
+  "tags": ["cost", "llm", "finops", "bonus-p4"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "💵 Cost Today (USD)",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 5},
+      "targets": [{"expr": "sum(increase(llm_cost_usd_total[24h]))", "legendFormat": "today"}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 2}}
+    },
+    {
+      "id": 2,
+      "title": "📊 Cost This Month (USD)",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 5},
+      "targets": [{"expr": "sum(increase(llm_cost_usd_total[30d]))", "legendFormat": "month"}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 2}}
+    },
+    {
+      "id": 3,
+      "title": "🎯 Budget Remaining",
+      "type": "gauge",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 5},
+      "targets": [{"expr": "llm_budget_remaining_usd / 500 * 100", "legendFormat": "%"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [
+        {"value": 0, "color": "red"}, {"value": 20, "color": "yellow"}, {"value": 50, "color": "green"}
+      ]}}}
+    },
+    {
+      "id": 4,
+      "title": "⚡ Cost Per Request — P50 / P95 / P99",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 5},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(llm_cost_per_request_usd_bucket[10m])) by (le, model))", "legendFormat": "{{model}} P50"},
+        {"expr": "histogram_quantile(0.95, sum(rate(llm_cost_per_request_usd_bucket[10m])) by (le, model))", "legendFormat": "{{model}} P95"},
+        {"expr": "histogram_quantile(0.99, sum(rate(llm_cost_per_request_usd_bucket[10m])) by (le, model))", "legendFormat": "{{model}} P99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}}
+    },
+    {
+      "id": 5,
+      "title": "💰 Cost by Model (stacked, per hour)",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 5, "w": 12, "h": 8},
+      "targets": [{"expr": "sum(increase(llm_cost_usd_total[1h])) by (model, vendor)", "legendFormat": "{{vendor}}/{{model}}"}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "custom": {"stacking": {"mode": "normal"}}}}
+    },
+    {
+      "id": 6,
+      "title": "🔤 Token Throughput (input/output per second)",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 5, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum(rate(llm_cost_tokens_total{direction=\"input\"}[5m])) by (model)", "legendFormat": "{{model}} in"},
+        {"expr": "sum(rate(llm_cost_tokens_total{direction=\"output\"}[5m])) by (model)", "legendFormat": "{{model}} out"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "tps"}}
+    },
+    {
+      "id": 7,
+      "title": "📈 Request Rate by Model",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 13, "w": 8, "h": 7},
+      "targets": [{"expr": "sum(rate(llm_cost_requests_total[1m])) by (model)", "legendFormat": "{{model}}"}],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "id": 8,
+      "title": "⏱️ API Latency P95 by Model",
+      "type": "timeseries",
+      "gridPos": {"x": 8, "y": 13, "w": 8, "h": 7},
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(llm_request_latency_seconds_bucket[5m])) by (le, model))", "legendFormat": "{{model}}"}],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 9,
+      "title": "💸 Cost Efficiency: $/1K Requests",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 13, "w": 4, "h": 7},
+      "targets": [{"expr": "sum(rate(llm_cost_usd_total[1h])) / sum(rate(llm_cost_requests_total[1h])) * 1000", "legendFormat": "$/1K req"}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 2}}
+    },
+    {
+      "id": 10,
+      "title": "🏆 Top 5 Most Expensive Models (last 1h)",
+      "type": "piechart",
+      "gridPos": {"x": 20, "y": 13, "w": 4, "h": 7},
+      "targets": [{"expr": "topk(5, sum(increase(llm_cost_usd_total[1h])) by (model))", "legendFormat": "{{model}}"}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}}
+    },
+    {
+      "id": 11,
+      "title": "⚠️ Budget Burn Rate (current vs sustainable)",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 20, "w": 24, "h": 8},
+      "targets": [
+        {"expr": "sum(rate(llm_cost_usd_total[1h])) * 24 * 30", "legendFormat": "Forecast: monthly spend at current burn"},
+        {"expr": "500", "legendFormat": "Monthly budget ($500)"},
+        {"expr": "sum(rate(llm_cost_usd_total[1h])) * 24", "legendFormat": "Forecast: today's spend"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "thresholds": {"mode": "absolute", "steps": [
+        {"value": 0, "color": "green"}, {"value": 400, "color": "yellow"}, {"value": 500, "color": "red"}
+      ]}}},
+      "description": "If 'Forecast: monthly spend' > budget line for > 1h, BURN RATE ALERT fires. At current burn rate, you'll exceed budget in N days."
+    }
+  ],
+  "time": {"from": "now-24h", "to": "now"}
+}

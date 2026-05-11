@@ -1,0 +1,109 @@
+{
+  "uid": "day19-vector-store",
+  "title": "Vector Store Overview (Day 19 Retrofit)",
+  "tags": ["day19", "vector-store", "retrieval", "bonus-p1"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1, "title": "Search Rate (req/s)",
+      "type": "timeseries", "gridPos": {"x": 0, "y": 0, "w": 8, "h": 8},
+      "targets": [{
+        "expr": "sum(rate(vector_search_requests_total[1m])) by (collection, status)",
+        "legendFormat": "{{collection}} — {{status}}"
+      }],
+      "fieldConfig": {
+        "defaults": {"unit": "reqps", "custom": {"fillOpacity": 15}},
+        "overrides": [{"matcher": {"id": "byName", "options": "error"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]}]
+      }
+    },
+    {
+      "id": 2, "title": "P99 Search Latency (ms)",
+      "type": "timeseries", "gridPos": {"x": 8, "y": 0, "w": 8, "h": 8},
+      "targets": [{
+        "expr": "histogram_quantile(0.99, sum(rate(vector_search_latency_seconds_bucket[5m])) by (le, collection)) * 1000",
+        "legendFormat": "{{collection}}"
+      }],
+      "fieldConfig": {"defaults": {"unit": "ms"}}
+    },
+    {
+      "id": 3, "title": "Recall@10 — the metric I actually fear",
+      "type": "timeseries", "gridPos": {"x": 16, "y": 0, "w": 8, "h": 8},
+      "targets": [{
+        "expr": "vector_retrieval_recall_at10",
+        "legendFormat": "{{collection}}"
+      }],
+      "fieldConfig": {
+        "defaults": {"unit": "percentunit", "min": 0, "max": 1, "thresholds": {"mode": "absolute", "steps": [
+          {"value": 0, "color": "red"},
+          {"value": 0.90, "color": "yellow"},
+          {"value": 0.95, "color": "green"}
+        ]}}
+      }
+    },
+    {
+      "id": 4, "title": "Error Rate (%)",
+      "type": "timeseries", "gridPos": {"x": 0, "y": 8, "w": 8, "h": 8},
+      "targets": [{
+        "expr": "sum(rate(vector_search_requests_total{status=\"error\"}[5m])) / sum(rate(vector_search_requests_total[5m])) * 100",
+        "legendFormat": "error rate"
+      }],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "thresholds": {"mode": "absolute", "steps": [
+        {"value": 0, "color": "green"},
+        {"value": 0.1, "color": "yellow"},
+        {"value": 1, "color": "red"}
+      ]}}}
+    },
+    {
+      "id": 5, "title": "Index Size (vectors)",
+      "type": "timeseries", "gridPos": {"x": 8, "y": 8, "w": 8, "h": 8},
+      "targets": [{
+        "expr": "vector_count_total",
+        "legendFormat": "{{collection}}"
+      }],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "id": 6, "title": "GPU Memory (simulated)",
+      "type": "gauge", "gridPos": {"x": 16, "y": 8, "w": 8, "h": 8},
+      "targets": [{
+        "expr": "vector_gpu_memory_bytes / 1024 / 1024 / 1024",
+        "legendFormat": "VRAM used (GB)"
+      }],
+      "fieldConfig": {"defaults": {"unit": "decgbytes", "min": 0, "thresholds": {"mode": "absolute", "steps": [
+        {"value": 0, "color": "green"},
+        {"value": 8, "color": "yellow"},
+        {"value": 14, "color": "red"}
+      ]}}}
+    },
+    {
+      "id": 7, "title": "SLO Burn Rate (Fast — 5m + 1h windows)",
+      "type": "timeseries", "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "vector_search:fail_ratio:rate5m / 0.001", "legendFormat": "5m burn rate ×"},
+        {"expr": "vector_search:fail_ratio:rate1h / 0.001", "legendFormat": "1h burn rate ×"},
+        {"expr": "14.4", "legendFormat": "critical threshold (14.4×)"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "none", "thresholds": {"mode": "absolute", "steps": [
+        {"value": 0, "color": "green"},
+        {"value": 6, "color": "yellow"},
+        {"value": 14.4, "color": "red"}
+      ]}}}
+    },
+    {
+      "id": 8, "title": "SLO Error Budget Remaining (30d)",
+      "type": "stat", "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "targets": [{
+        "expr": "(0.001 - (sum(rate(vector_search_requests_total{status=\"error\"}[30d])) / sum(rate(vector_search_requests_total[30d])))) / 0.001 * 100",
+        "legendFormat": "budget %"
+      }],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [
+        {"value": 0, "color": "red"},
+        {"value": 50, "color": "yellow"},
+        {"value": 80, "color": "green"}
+      ]}}}
+    }
+  ],
+  "time": {"from": "now-1h", "to": "now"}
+}

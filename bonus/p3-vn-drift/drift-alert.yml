@@ -1,0 +1,51 @@
+## Drift Alert Rules — Vietnamese News Headlines
+##
+## Key design decision: We do NOT alert on PSI > 0.1 alone because
+## Vietnamese news has expected seasonality (Tết vocabulary, summer travel).
+## Instead, we alert when:
+##   (a) PSI exceeds 0.25 on any feature (significant drift), OR
+##   (b) English word ratio drifts > 2σ from its 30-day rolling baseline
+##       (catches sudden loanword/tech-term influx before it breaks NER)
+
+groups:
+  - name: vn-drift
+    interval: 1m
+    rules:
+      - alert: VNNewsSignificantDrift
+        expr: |
+          max(vn_drift_significant) >= 1
+        for: 5m
+        labels:
+          severity: warning
+          service: drift-detection
+          dataset: vn-news-headlines
+        annotations:
+          summary: "Significant data drift detected in VN news headlines (PSI > 0.25)"
+          description: |
+            Một hoặc nhiều feature có PSI > 0.25 — phân phối text đã thay đổi đáng kể so với reference.
+            Kiểm tra dashboard để xác định feature nào bị ảnh hưởng.
+            - Nếu english_word_ratio: có thể do tăng bài viết về công nghệ (bình thường) hoặc data pipeline bị lỗi encoding
+            - Nếu text_length: có thể editorial style change hoặc parser bị lỗi
+            - Nếu tone_mark_ratio: có thể data bị strip dấu tiếng Việt (lỗi preprocessing nghiêm trọng)
+          runbook_url: "https://github.com/loversky/Day23-Track2-Observability-Lab/blob/main/bonus/p3-vn-drift/RUNBOOK.md"
+
+      - alert: VNNewsEnglishRatioSpike
+        expr: |
+          vn_drift_psi{feature="english_word_ratio"} > (
+            avg_over_time(vn_drift_psi{feature="english_word_ratio"}[30d]) +
+            2 * stddev_over_time(vn_drift_psi{feature="english_word_ratio"}[30d])
+          )
+        for: 10m
+        labels:
+          severity: warning
+          service: drift-detection
+          dataset: vn-news-headlines
+        annotations:
+          summary: "English word ratio spike > 2σ above 30-day baseline"
+          description: |
+            Tỉ lệ từ tiếng Anh trong headline tăng đột biến (vượt 2σ).
+            Đây là leading indicator cho vocabulary shift có thể làm hỏng NER model.
+            - Kiểm tra xem có campaign quảng cáo mới, sự kiện công nghệ, hoặc thay đổi editorial guideline không
+            - Nếu là organic → update NER training data
+            - Nếu là parser bug → rollback data pipeline
+          runbook_url: "https://github.com/loversky/Day23-Track2-Observability-Lab/blob/main/bonus/p3-vn-drift/RUNBOOK.md"

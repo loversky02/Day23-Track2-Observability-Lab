@@ -1,0 +1,79 @@
+## Cost Observability Alert Rules
+##
+## Two alert types:
+##   (a) Budget burn-rate: forecast monthly spend > budget → 3 days to exhaustion
+##   (b) Per-request anomaly: single-request cost > 3σ above 1h rolling mean
+##
+## Budget: $500/month (configurable via env LLM_MONTHLY_BUDGET_USD)
+
+groups:
+  - name: llm-cost
+    interval: 30s
+    rules:
+      # (a) Burn-rate alert: predicted monthly spend exceeds budget
+      - alert: LLMBudgetBurnRate
+        expr: |
+          sum(rate(llm_cost_usd_total[1h])) * 24 * 30 > 500
+        for: 1h
+        labels:
+          severity: critical
+          service: llm-cost
+          audience: both
+        annotations:
+          summary: "LLM cost burn rate exceeds monthly budget — at current pace, budget gone in < 30 days"
+          description: |
+            Current burn rate: ${{ humanize (printf \"%.2f\" (sum(rate(llm_cost_usd_total[1h])) * 24 * 30)) }}/month forecast.
+            Budget: $500/month.
+            Check the cost dashboard immediately — identify which model/endpoint is driving spend.
+            Top suspects: debug loops without early-stop, retry storms, prompt-doubling due to tool recursion.
+          runbook_url: "https://github.com/loversky/Day23-Track2-Observability-Lab/blob/main/bonus/p4-cost-obs/RUNBOOK.md"
+
+      # (b) Per-request cost anomaly
+      - alert: LLMPerRequestCostAnomaly
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(llm_cost_per_request_usd_bucket[1h])) by (le, model)
+          ) > (
+            avg_over_time(
+              histogram_quantile(0.99,
+                sum(rate(llm_cost_per_request_usd_bucket[1h])) by (le, model)
+              )[1h:]
+            ) + 3 * stddev_over_time(
+              histogram_quantile(0.99,
+                sum(rate(llm_cost_per_request_usd_bucket[1h])) by (le, model)
+              )[1h:]
+            )
+          )
+        for: 15m
+        labels:
+          severity: warning
+          service: llm-cost
+          audience: dev
+        annotations:
+          summary: "Per-request cost anomaly on {{ $labels.model }}: P99 cost > 3σ above baseline"
+          description: |
+            Single-request cost on {{ $labels.model }} has spiked > 3σ above the 1h rolling average.
+            Possible causes:
+            - Prompt explosion (tool recursion appending context repeatedly)
+            - Retry storm (failed requests being retried with full context)
+            - Model switching (user or bug sending requests to more expensive model)
+            - Token counting bug (streaming response accumulating incorrectly)
+          runbook_url: "https://github.com/loversky/Day23-Track2-Observability-Lab/blob/main/bonus/p4-cost-obs/RUNBOOK.md"
+
+      # (c) No requests but budget is burning (idle spend detection)
+      - alert: LLMIdleSpend
+        expr: |
+          sum(rate(llm_cost_usd_total[6h])) > 0.5
+          and
+          sum(rate(llm_cost_requests_total[6h])) == 0
+        for: 1h
+        labels:
+          severity: warning
+          service: llm-cost
+        annotations:
+          summary: "LLM cost accumulating without new requests — possible stuck billing or streaming leak"
+          description: |
+            Cost is increasing but no new requests detected in 6h.
+            This could indicate a streaming connection that never closed, or a billing bug.
+            Check active connections and billing console.
+          runbook_url: "https://github.com/loversky/Day23-Track2-Observability-Lab/blob/main/bonus/p4-cost-obs/RUNBOOK.md"
